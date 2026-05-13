@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Stored as space-separated RGB triplets so Tailwind opacity modifiers
+     (e.g. `bg-primary/20`) generate valid `rgb(R G B / 0.2)` CSS. The values
+     map to: primary #FDC507, primary-dark #E6B000, primary-light #FFF3C0,
+     accent #111827. Overridden at runtime by app/layout.tsx for white-label. */
+  --primary: 253 197 7;
+  --primary-dark: 230 176 0;
+  --primary-light: 255 243 192;
+  --accent: 17 24 39;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Geist', system-ui, -apple-system, sans-serif;
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary text-black font-bold py-3 px-6 rounded-xl hover:bg-primary-dark transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-outline {
+    @apply border-2 border-primary text-primary font-bold py-3 px-6 rounded-xl hover:bg-primary hover:text-black transition-all duration-200;
+  }
+
+  .btn-danger {
+    @apply bg-red-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-600 transition-all duration-200;
+  }
+
+  .btn-success {
+    @apply bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-all duration-200;
+  }
+
+  .input-field {
+    @apply w-full border border-gray-200 rounded-xl px-4 py-3 bg-gray-50 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl shadow-sm border border-gray-100 p-4;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold uppercase;
+  }
+
+  .status-booked    { @apply bg-orange-100 text-orange-700; }
+  .status-checked_in { @apply bg-green-100 text-green-700; }
+  .status-checked_out { @apply bg-blue-100 text-blue-700; }
+  .status-cancelled  { @apply bg-red-100 text-red-700; }
+  .status-pending    { @apply bg-orange-100 text-orange-700; }
+  .status-active     { @apply bg-green-100 text-green-700; }
+  .status-rejected   { @apply bg-red-100 text-red-700; }
+}
