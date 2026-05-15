@@ -80,7 +80,13 @@ export async function middleware(request: NextRequest) {
     //  ────────────────────────────────────────────────────────────────────
     const fetchByDomain = async (timeoutMs: number): Promise<Response | null> => {
         try {
-            const lookupUrl = `${API_BASE}/p/api/public/by-domain?host=${encodeURIComponent(host)}`;
+            // Route is mounted at /p/api/developers/* in server.js — NOT /p/api/*.
+            // Earlier bug: the path was /p/api/public/by-domain (missing the
+            // `developers` segment) so Express returned 404 for every host,
+            // even for valid live domains. Verified in p_DeveloperRoutes.js:
+            //   router.get('/public/by-domain', ...)   ← relative to the
+            //   `/p/api/developers` mount in server.js.
+            const lookupUrl = `${API_BASE}/p/api/developers/public/by-domain?host=${encodeURIComponent(host)}`;
             return await fetch(lookupUrl, {
                 signal:  AbortSignal.timeout(timeoutMs),
                 cache:   'no-store',
