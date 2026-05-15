@@ -1,83 +1,38 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+// ═══════════════════════════════════════════════════════════════════════
+//  GoogleLoginButton — Firebase Auth-based Google Sign-In
+//
+//  WHY FIREBASE AUTH (instead of Google Identity Services library):
+//    Custom developer domains (e.g. exyrix.com) need Google Sign-In to
+//    work without per-domain manual setup in Google Cloud Console. GIS's
+//    JS library checks the page origin against the OAuth client's
+//    Authorized JavaScript origins list — manual-only, doesn't scale.
+//
+//    Firebase Auth uses its own "authorized domains" list which IS
+//    programmatically updatable (Identity Toolkit Admin API). Backend
+//    auto-adds each developer's domain when they verify it. So a new
+//    developer's exyrix.com works the moment their domain goes live —
+//    zero ops involvement.
+//
+//  Behaviour: clicking opens a Google popup via Firebase. On success we
+//  extract the underlying Google id_token and hand it to the parent
+//  handler — same shape as the old GSI flow, so LoginForm etc. need no
+//  other changes. Email/password and other auth methods are untouched.
+//
+//  Required env (Vercel + .env.local):
+//    NEXT_PUBLIC_FIREBASE_API_KEY
+//    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+//    NEXT_PUBLIC_FIREBASE_PROJECT_ID
+//    NEXT_PUBLIC_FIREBASE_APP_ID  (optional)
+// ═══════════════════════════════════════════════════════════════════════
+import { useState } from 'react';
 import { Spinner } from './ui';
-import { getBrand } from '@/lib/brand';
-import { API_ROOT } from '@/lib/api';
-
-// ═══════════════════════════════════════════════════════════════
-//  GoogleLoginButton — reusable Google Sign-In wrapper
-//
-//  Loads the Google Identity Services script once and renders the
-//  official Google "Sign in with G" button. On success it forwards
-//  the credential (id_token) to a parent-supplied handler so each
-//  portal (user / hotel / sales / developer) can route it to the
-//  correct backend endpoint.
-//
-//  Required env: NEXT_PUBLIC_GOOGLE_CLIENT_ID (set in Vercel + .env.local)
-//
-//  Super admin intentionally does NOT use this — too sensitive,
-//  email+password only.
-// ═══════════════════════════════════════════════════════════════
-
-declare global {
-  interface Window {
-    google?: {
-      accounts?: {
-        id?: {
-          initialize: (cfg: {
-            client_id: string;
-            callback: (response: { credential?: string }) => void;
-            ux_mode?: 'popup' | 'redirect';
-            auto_select?: boolean;
-          }) => void;
-          renderButton: (
-            parent: HTMLElement,
-            opts: {
-              type?: 'standard' | 'icon';
-              theme?: 'outline' | 'filled_blue' | 'filled_black';
-              size?: 'large' | 'medium' | 'small';
-              text?: 'signin_with' | 'signup_with' | 'continue_with' | 'signin';
-              shape?: 'rectangular' | 'pill' | 'circle' | 'square';
-              width?: number | string;
-              logo_alignment?: 'left' | 'center';
-            }
-          ) => void;
-          prompt?: () => void;
-          cancel?: () => void;
-        };
-      };
-    };
-  }
-}
-
-const GSI_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
-
-function loadGsi(): Promise<boolean> {
-  if (typeof window === 'undefined') return Promise.resolve(false);
-  if (window.google?.accounts?.id) return Promise.resolve(true);
-  return new Promise(resolve => {
-    const existing = document.querySelector(`script[src="${GSI_SCRIPT_SRC}"]`) as HTMLScriptElement | null;
-    if (existing) {
-      existing.addEventListener('load',  () => resolve(true));
-      existing.addEventListener('error', () => resolve(false));
-      // If it already finished loading before we attached
-      if (window.google?.accounts?.id) resolve(true);
-      return;
-    }
-    const s = document.createElement('script');
-    s.src   = GSI_SCRIPT_SRC;
-    s.async = true;
-    s.defer = true;
-    s.onload  = () => resolve(true);
-    s.onerror = () => resolve(false);
-    document.head.appendChild(s);
-  });
-}
+import { signInWithGooglePopup } from '@/lib/firebase';
 
 export interface GoogleLoginButtonProps {
-  /** Called with the Google credential (id_token) on successful auth. */
+  /** Called with the underlying Google credential (id_token) on success. */
   onCredential: (idToken: string) => void | Promise<void>;
-  /** Optional error reporter — used when GSI fails to load or env var is missing. */
+  /** Optional error reporter — used when the popup is closed or blocked. */
   onError?: (msg: string) => void;
   /** Button text variant. */
   text?: 'signin_with' | 'signup_with' | 'continue_with' | 'signin';
@@ -85,136 +40,72 @@ export interface GoogleLoginButtonProps {
   busy?: boolean;
   /** Optional wrapper class for spacing in different layouts. */
   className?: string;
-  /**
-   * Role to register/login the user as on the backend. Used by the proxy
-   * redirect path so backend knows whether to create a user/hotel/sales
-   * record on first Google sign-in.
-   */
+  /** Reserved for future per-role provisioning hints — currently unused but
+   *  kept in the prop shape so call sites don't need to change later. */
   role?: 'user' | 'hotel' | 'sales';
 }
 
+const LABELS: Record<NonNullable<GoogleLoginButtonProps['text']>, string> = {
+  signin_with:   'Sign in with Google',
+  signup_with:   'Sign up with Google',
+  continue_with: 'Continue with Google',
+  signin:        'Google',
+};
+
 export default function GoogleLoginButton({
-  onCredential, onError, text = 'continue_with', busy, className, role = 'user',
+  onCredential, onError, text = 'continue_with', busy, className,
 }: GoogleLoginButtonProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const onCredentialRef = useRef(onCredential);
-  const onErrorRef      = useRef(onError);
-  const [ready, setReady] = useState(false);
-  const [bootError, setBootError] = useState('');
-  // True when the user is on a developer's white-label domain. We render a
-  // plain redirect button in that case instead of the GSI popup library —
-  // see proxy flow docs in p_AuthController.js (googleProxyRedirect).
-  const [useProxyFlow, setUseProxyFlow] = useState(false);
+  const [pending, setPending] = useState(false);
 
-  // Keep latest callbacks reachable from the GSI callback without re-init
-  // every render (parents typically pass inline arrow functions).
-  useEffect(() => { onCredentialRef.current = onCredential; }, [onCredential]);
-  useEffect(() => { onErrorRef.current = onError; },           [onError]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-
-    // Detect custom domain via brand cookie set by edge middleware. If
-    // `firm_id` is present we're on a developer's branded domain — Google's
-    // JS lib would fail origin_mismatch here, so use the redirect proxy.
-    if (typeof window !== 'undefined' && getBrand().firm_id) {
-      setUseProxyFlow(true);
-      setReady(true);
-      return;
-    }
-
-    if (!clientId) {
-      const msg = 'Google Sign-In not configured. Set NEXT_PUBLIC_GOOGLE_CLIENT_ID.';
-      setBootError(msg);
-      onErrorRef.current?.(msg);
-      return;
-    }
-
-    (async () => {
-      const ok = await loadGsi();
-      if (cancelled) return;
-      if (!ok || !window.google?.accounts?.id || !containerRef.current) {
-        const msg = 'Google Sign-In could not load. Check your network or ad-blocker.';
-        setBootError(msg);
-        onErrorRef.current?.(msg);
-        return;
+  async function handleClick() {
+    if (busy || pending) return;
+    setPending(true);
+    try {
+      const { idToken } = await signInWithGooglePopup();
+      await onCredential(idToken);
+    } catch (e: unknown) {
+      // User closed the popup / blocked it / network error
+      const code = (e as { code?: string })?.code || '';
+      let msg: string;
+      if (code === 'auth/popup-closed-by-user') {
+        msg = 'Google sign-in cancel ho gaya.';
+      } else if (code === 'auth/popup-blocked') {
+        msg = 'Browser ne popup block kar diya. Site ko allow karke retry karo.';
+      } else if (code === 'auth/cancelled-popup-request') {
+        // Multiple rapid clicks — ignore silently
+        msg = '';
+      } else {
+        msg = (e as Error)?.message || 'Google sign-in failed.';
       }
-
-      window.google.accounts.id.initialize({
-        client_id: clientId,
-        callback: (response) => {
-          if (response?.credential) onCredentialRef.current(response.credential);
-        },
-        ux_mode:     'popup',
-        auto_select: false,
-      });
-
-      // Render the official Google button
-      window.google.accounts.id.renderButton(containerRef.current, {
-        type:           'standard',
-        theme:          'outline',
-        size:           'large',
-        text,
-        shape:          'rectangular',
-        width:          320,
-        logo_alignment: 'left',
-      });
-
-      setReady(true);
-    })();
-
-    return () => { cancelled = true; };
-    // Only re-render the Google button if `text` changes (different copy).
-  }, [text]);
-
-  if (bootError) {
-    return (
-      <p className={`text-xs text-orange-600 text-center ${className || ''}`}>
-        ⚠️ {bootError}
-      </p>
-    );
+      if (msg) onError?.(msg);
+    } finally {
+      setPending(false);
+    }
   }
 
-  // ── Proxy-redirect button (custom domain) ─────────────────────────────
-  //  Plain link to backend, which signs state and forwards to Google.
-  //  Avoids GSI library entirely (which would otherwise fail with
-  //  origin_mismatch since custom domain isn't in Cloud Console).
-  if (useProxyFlow) {
-    const returnUrl = typeof window !== 'undefined' ? window.location.href.split('?')[0] : '';
-    const proxyHref =
-      `${API_ROOT}/api/auth/google-redirect`
-      + `?return=${encodeURIComponent(returnUrl)}`
-      + `&role=${encodeURIComponent(role)}`;
-    return (
-      <a
-        href={proxyHref}
-        className={`flex items-center justify-center gap-3 px-5 py-2.5 w-[320px] max-w-full rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-sm font-semibold text-gray-700 shadow-sm transition ${busy ? 'opacity-50 pointer-events-none' : ''} ${className || ''}`}
-        aria-busy={!!busy}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-          alt="Google"
-          className="w-5 h-5"
-        />
-        <span>Continue with Google</span>
-      </a>
-    );
-  }
+  const disabled = !!busy || pending;
+  const label    = LABELS[text];
 
   return (
-    <div className={`flex flex-col items-center gap-2 ${className || ''}`}>
-      <div
-        ref={containerRef}
-        className={`transition-opacity ${busy ? 'opacity-50 pointer-events-none' : ''}`}
-        aria-busy={!!busy}
-      />
-      {!ready && (
-        <div className="flex items-center gap-2 text-xs text-gray-400">
-          <Spinner size="sm" /> Loading Google Sign-In...
-        </div>
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={disabled}
+      aria-busy={disabled}
+      className={`flex items-center justify-center gap-3 px-5 py-2.5 w-[320px] max-w-full rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-sm font-semibold text-gray-700 shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed ${className || ''}`}
+    >
+      {pending ? (
+        <Spinner size="sm" />
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+          alt=""
+          aria-hidden="true"
+          className="w-5 h-5"
+        />
       )}
-    </div>
+      <span>{pending ? 'Signing in...' : label}</span>
+    </button>
   );
 }
