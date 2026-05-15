@@ -1,6 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { API_ROOT, API_TOKEN, saveAuth, googleLogin } from '@/lib/api';
+import { getBrand } from '@/lib/brand';
 import Link from 'next/link';
 import { Spinner } from './ui';
 import GoogleLoginButton from './GoogleLoginButton';
@@ -41,6 +42,61 @@ export default function LoginForm({ role, onSuccess, allowedRoles, title, subtit
   const [error, setError]       = useState('');
   const [showPass, setShowPass] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
+
+  // On custom (white-label) domains, override the hardcoded title/subtitle
+  // with the developer's app_name + tagline so visitors see Exyrix's brand
+  // rather than literal "PREMO" on their own domain. On Premo's default
+  // domain, brand.firm_id is empty so the hardcoded title remains.
+  const brand = typeof window !== 'undefined' ? getBrand() : null;
+  const displayTitle    = brand?.firm_id ? brand.app_name : title;
+  const displaySubtitle = brand?.firm_id ? (brand.branding.tagline || subtitle) : subtitle;
+
+  // ── Google proxy callback handler ────────────────────────────────────
+  // When the backend completes a custom-domain Google login, it redirects
+  // here with `?premo_token=<jwt>&premo_user=<b64 json>`. Pick those up,
+  // save auth, strip the URL, and fire onSuccess.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const tokenParam = params.get('premo_token');
+    const userParam  = params.get('premo_user');
+    const authErr    = params.get('premo_auth_error');
+    const authMsg    = params.get('premo_auth_msg');
+
+    if (authErr) {
+      setError(authMsg || `Login error: ${authErr}`);
+      // Clean URL so the error doesn't replay on refresh.
+      window.history.replaceState({}, '', window.location.pathname);
+      return;
+    }
+
+    if (!tokenParam || !userParam) return;
+    try {
+      const userJson = JSON.parse(atob(userParam));
+      const userRole = userJson.role;
+      if (!allowedRoles.includes(userRole)) {
+        const expected = allowedRoles.map(r => ROLE_LABEL[r] || r).join(' or ');
+        const got      = ROLE_LABEL[userRole] || userRole;
+        setError(`Wrong portal! You are a "${got}". This portal is for "${expected}".`);
+      } else {
+        saveAuth(tokenParam, userRole, {
+          id:    userJson.id    || '',
+          name:  userJson.name  || '',
+          email: userJson.email || '',
+          role:  userRole,
+        });
+        // Strip the sensitive query params from the URL BEFORE navigating
+        // so token doesn't get logged in browser history alongside the path.
+        window.history.replaceState({}, '', window.location.pathname);
+        onSuccess({ token: tokenParam, auth: userJson });
+      }
+    } catch (e) {
+      setError('Login session decode failed.');
+    }
+    // Always clean URL — even on error — so refresh doesn't replay state.
+    window.history.replaceState({}, '', window.location.pathname);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Google credential handler — same flow as email login on success
   async function handleGoogle(idToken: string) {
@@ -120,9 +176,16 @@ export default function LoginForm({ role, onSuccess, allowedRoles, title, subtit
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-yellow-50 to-white p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-primary rounded-2xl mb-4 text-4xl shadow-md">{icon}</div>
-          <h1 className="text-3xl font-black text-gray-900">{title}</h1>
-          <p className="text-gray-500 mt-1">{subtitle}</p>
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-primary rounded-2xl mb-4 text-4xl shadow-md overflow-hidden">
+            {brand?.firm_id && brand.branding.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={brand.branding.logo_url} alt={brand.app_name} className="w-full h-full object-contain" />
+            ) : (
+              <span>{icon}</span>
+            )}
+          </div>
+          <h1 className="text-3xl font-black text-gray-900">{displayTitle}</h1>
+          <p className="text-gray-500 mt-1">{displaySubtitle}</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
@@ -168,6 +231,7 @@ export default function LoginForm({ role, onSuccess, allowedRoles, title, subtit
                   onError={(m) => setError(m)}
                   busy={googleBusy || loading}
                   text="continue_with"
+                  role={googleRole}
                 />
               </div>
             </>

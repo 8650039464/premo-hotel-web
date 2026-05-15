@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { Spinner } from './ui';
+import { getBrand } from '@/lib/brand';
+import { API_ROOT } from '@/lib/api';
 
 // ═══════════════════════════════════════════════════════════════
 //  GoogleLoginButton — reusable Google Sign-In wrapper
@@ -83,16 +85,26 @@ export interface GoogleLoginButtonProps {
   busy?: boolean;
   /** Optional wrapper class for spacing in different layouts. */
   className?: string;
+  /**
+   * Role to register/login the user as on the backend. Used by the proxy
+   * redirect path so backend knows whether to create a user/hotel/sales
+   * record on first Google sign-in.
+   */
+  role?: 'user' | 'hotel' | 'sales';
 }
 
 export default function GoogleLoginButton({
-  onCredential, onError, text = 'continue_with', busy, className,
+  onCredential, onError, text = 'continue_with', busy, className, role = 'user',
 }: GoogleLoginButtonProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const onCredentialRef = useRef(onCredential);
   const onErrorRef      = useRef(onError);
   const [ready, setReady] = useState(false);
   const [bootError, setBootError] = useState('');
+  // True when the user is on a developer's white-label domain. We render a
+  // plain redirect button in that case instead of the GSI popup library —
+  // see proxy flow docs in p_AuthController.js (googleProxyRedirect).
+  const [useProxyFlow, setUseProxyFlow] = useState(false);
 
   // Keep latest callbacks reachable from the GSI callback without re-init
   // every render (parents typically pass inline arrow functions).
@@ -102,6 +114,15 @@ export default function GoogleLoginButton({
   useEffect(() => {
     let cancelled = false;
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+
+    // Detect custom domain via brand cookie set by edge middleware. If
+    // `firm_id` is present we're on a developer's branded domain — Google's
+    // JS lib would fail origin_mismatch here, so use the redirect proxy.
+    if (typeof window !== 'undefined' && getBrand().firm_id) {
+      setUseProxyFlow(true);
+      setReady(true);
+      return;
+    }
 
     if (!clientId) {
       const msg = 'Google Sign-In not configured. Set NEXT_PUBLIC_GOOGLE_CLIENT_ID.';
@@ -152,6 +173,33 @@ export default function GoogleLoginButton({
       <p className={`text-xs text-orange-600 text-center ${className || ''}`}>
         ⚠️ {bootError}
       </p>
+    );
+  }
+
+  // ── Proxy-redirect button (custom domain) ─────────────────────────────
+  //  Plain link to backend, which signs state and forwards to Google.
+  //  Avoids GSI library entirely (which would otherwise fail with
+  //  origin_mismatch since custom domain isn't in Cloud Console).
+  if (useProxyFlow) {
+    const returnUrl = typeof window !== 'undefined' ? window.location.href.split('?')[0] : '';
+    const proxyHref =
+      `${API_ROOT}/api/auth/google-redirect`
+      + `?return=${encodeURIComponent(returnUrl)}`
+      + `&role=${encodeURIComponent(role)}`;
+    return (
+      <a
+        href={proxyHref}
+        className={`flex items-center justify-center gap-3 px-5 py-2.5 w-[320px] max-w-full rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-sm font-semibold text-gray-700 shadow-sm transition ${busy ? 'opacity-50 pointer-events-none' : ''} ${className || ''}`}
+        aria-busy={!!busy}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+          alt="Google"
+          className="w-5 h-5"
+        />
+        <span>Continue with Google</span>
+      </a>
     );
   }
 
