@@ -108,6 +108,19 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
         )}
       </nav>
       <main className="max-w-7xl mx-auto px-4 py-6">{children}</main>
+
+      {/* Footer — conditionally shows "Powered by Premo" attribution.
+          Developer toggles `show_premo_footer` in /developer/settings.
+          Default true; absent value (older records) treated as true. */}
+      {brand.branding.show_premo_footer !== false && (
+        <footer className="border-t border-gray-100 mt-8">
+          <div className="max-w-7xl mx-auto px-4 py-5 text-center">
+            <p className="text-gray-400 text-xs">
+              Powered by <span className="font-semibold">PREMO</span> · Hotel Booking Engine
+            </p>
+          </div>
+        </footer>
+      )}
     </div>
   );
 }

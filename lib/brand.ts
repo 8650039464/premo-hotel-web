@@ -18,14 +18,15 @@ export type Brand = {
     firm_id:  string;
     app_name: string;
     branding: {
-        logo_url?:       string;
-        primary_color?:  string;
-        accent_color?:   string;
-        support_email?:  string;
-        support_phone?:  string;
-        tagline?:        string;
-        play_store_url?: string;
-        app_store_url?:  string;
+        logo_url?:          string;
+        primary_color?:     string;
+        accent_color?:      string;
+        support_email?:     string;
+        support_phone?:     string;
+        tagline?:           string;
+        play_store_url?:    string;
+        app_store_url?:     string;
+        show_premo_footer?: boolean;     // controlled by developer in /settings
     };
 };
 
@@ -33,9 +34,10 @@ export const DEFAULT_BRAND: Brand = {
     firm_id:  '',
     app_name: 'PREMO',
     branding: {
-        primary_color: '#FDC507',
-        accent_color:  '#111827',
-        tagline:       'Hourly hotel bookings, simplified',
+        primary_color:     '#FDC507',
+        accent_color:      '#111827',
+        tagline:           'Hourly hotel bookings, simplified',
+        show_premo_footer: true,
     },
 };
 

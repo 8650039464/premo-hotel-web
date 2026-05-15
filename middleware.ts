@@ -127,6 +127,28 @@ h1{color:#111;font-size:28px}p{color:#555;margin-top:12px}</style></head><body>
 
     if (!firmData) return NextResponse.next();
 
+    // ── Custom-domain access policy ───────────────────────────────────
+    //  A developer's branded domain (e.g. exyrix.com) is for END USERS
+    //  only. Hotel admin / sales / super-admin / developer portals are
+    //  Premo's internal B2B surfaces — they must NOT be reachable from
+    //  the developer's branded domain (confusing for the dev's customers
+    //  and a UX/security concern). On custom domains:
+    //    • `/` → redirect to `/user`
+    //    • `/hotel-admin/*`, `/sales/*`, `/super-admin/*`, `/developer/*`
+    //      → redirect to `/user`
+    //  These business-side users keep logging in via the default Premo
+    //  domain (premo-hotel-web.vercel.app or premo.app).
+    const url = request.nextUrl;
+    const path = url.pathname;
+    const BLOCKED_PREFIXES = ['/hotel-admin', '/super-admin', '/developer', '/sales'];
+    const isBlocked = BLOCKED_PREFIXES.some(p => path === p || path.startsWith(p + '/'));
+    if (path === '/' || isBlocked) {
+        const redirectUrl = url.clone();
+        redirectUrl.pathname = '/user';
+        redirectUrl.search = '';
+        return NextResponse.redirect(redirectUrl, 307);
+    }
+
     // ── Inject branding into request + response ─────────────────────────
     const response = NextResponse.next({
         request: {

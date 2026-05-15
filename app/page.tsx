@@ -1,110 +1,44 @@
-'use client';
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { getAuth } from '@/lib/api';
+// ═══════════════════════════════════════════════════════════════════════
+//  ROOT LANDING (premo.app / *.vercel.app)
+//
+//  Server component — reads `premo-brand` cookie set by edge middleware
+//  so the title / tagline / footer reflect the current host's branding
+//  even though this page is also reachable from default Premo domain.
+//
+//  On custom domains the middleware now redirects `/` → `/user`, so this
+//  landing is only rendered on premo-hotel-web.vercel.app (or premo.app)
+//  where the 5-role picker makes sense. The branding-aware rendering is
+//  still kept so the default brand string stays consistent everywhere.
+// ═══════════════════════════════════════════════════════════════════════
+import { cookies } from 'next/headers';
+import LandingClient from './_LandingClient';
 
-export default function Home() {
-  const router = useRouter();
+type BrandShape = {
+  firm_id: string;
+  app_name: string;
+  branding: { tagline?: string; logo_url?: string; show_premo_footer?: boolean };
+};
 
-  useEffect(() => {
-    // Already logged in? Seedha portal pe bhejo
-    const auth = getAuth();
-    if (auth?.role === 'user')  { router.replace('/user'); return; }
-    if (auth?.role === 'hotel') { router.replace('/hotel-admin'); return; }
-    if (auth?.role === 'sales') { router.replace('/sales'); return; }
-    if (auth?.role === 'admin') { router.replace('/super-admin'); return; }
-  }, []);
+const DEFAULT: BrandShape = {
+  firm_id:  '',
+  app_name: 'PREMO',
+  branding: { tagline: 'Hotel Booking Platform', show_premo_footer: true },
+};
 
-  return (
-    <main className="min-h-screen bg-gradient-to-br from-yellow-50 via-white to-yellow-50 flex items-center justify-center p-4">
-      <div className="max-w-4xl w-full">
-        {/* Logo */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-primary rounded-2xl mb-4 shadow-lg">
-            <span className="text-3xl">🏨</span>
-          </div>
-          <h1 className="text-4xl font-black text-gray-900 mb-2">PREMO</h1>
-          <p className="text-gray-500 text-lg">Hotel Booking Platform</p>
-        </div>
+async function readBrand(): Promise<BrandShape> {
+  try {
+    const c = (await cookies()).get('premo-brand');
+    if (!c?.value) return DEFAULT;
+    const parsed = JSON.parse(c.value);
+    return {
+      firm_id:  parsed.firm_id  || '',
+      app_name: parsed.app_name || DEFAULT.app_name,
+      branding: { ...DEFAULT.branding, ...(parsed.branding || {}) },
+    };
+  } catch { return DEFAULT; }
+}
 
-        {/* Portal Cards */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-5">
-          {/* User Portal */}
-          <Link href="/user" className="group">
-            <div className="card hover:shadow-lg hover:border-primary/30 transition-all duration-300 text-center py-8 cursor-pointer group-hover:-translate-y-1">
-              <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <span className="text-3xl">👤</span>
-              </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">User Portal</h2>
-              <p className="text-gray-500 text-sm">Browse & book hotels by the hour</p>
-              <div className="mt-4 inline-block px-4 py-2 bg-primary text-black text-sm font-bold rounded-lg group-hover:bg-primary-dark transition-colors">
-                Enter →
-              </div>
-            </div>
-          </Link>
-
-          {/* Hotel Admin */}
-          <Link href="/hotel-admin" className="group">
-            <div className="card hover:shadow-lg hover:border-primary/30 transition-all duration-300 text-center py-8 cursor-pointer group-hover:-translate-y-1">
-              <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <span className="text-3xl">🏩</span>
-              </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Hotel Admin</h2>
-              <p className="text-gray-500 text-sm">Manage your hotel, bookings & rooms</p>
-              <div className="mt-4 inline-block px-4 py-2 bg-primary text-black text-sm font-bold rounded-lg group-hover:bg-primary-dark transition-colors">
-                Enter →
-              </div>
-            </div>
-          </Link>
-
-          {/* Sales Agent */}
-          <Link href="/sales" className="group">
-            <div className="card hover:shadow-lg hover:border-primary/30 transition-all duration-300 text-center py-8 cursor-pointer group-hover:-translate-y-1">
-              <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <span className="text-3xl">💼</span>
-              </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Sales Agent</h2>
-              <p className="text-gray-500 text-sm">Onboard hotels & earn commission</p>
-              <div className="mt-4 inline-block px-4 py-2 bg-primary text-black text-sm font-bold rounded-lg group-hover:bg-primary-dark transition-colors">
-                Enter →
-              </div>
-            </div>
-          </Link>
-
-          {/* Super Admin */}
-          <Link href="/super-admin" className="group">
-            <div className="card hover:shadow-lg hover:border-primary/30 transition-all duration-300 text-center py-8 cursor-pointer group-hover:-translate-y-1">
-              <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <span className="text-3xl">⚡</span>
-              </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Super Admin</h2>
-              <p className="text-gray-500 text-sm">Platform management & approvals</p>
-              <div className="mt-4 inline-block px-4 py-2 bg-primary text-black text-sm font-bold rounded-lg group-hover:bg-primary-dark transition-colors">
-                Enter →
-              </div>
-            </div>
-          </Link>
-
-          {/* Developer Portal */}
-          <Link href="/developer" className="group">
-            <div className="card hover:shadow-lg hover:border-primary/30 transition-all duration-300 text-center py-8 cursor-pointer group-hover:-translate-y-1">
-              <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <span className="text-3xl">🧪</span>
-              </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Developer</h2>
-              <p className="text-gray-500 text-sm">White-label partners · API key & earnings</p>
-              <div className="mt-4 inline-block px-4 py-2 bg-primary text-black text-sm font-bold rounded-lg group-hover:bg-primary-dark transition-colors">
-                Enter →
-              </div>
-            </div>
-          </Link>
-        </div>
-
-        <p className="text-center text-gray-400 text-sm mt-8">
-          Powered by PREMO API · Built for the web
-        </p>
-      </div>
-    </main>
-  );
+export default async function Home() {
+  const brand = await readBrand();
+  return <LandingClient brand={brand} />;
 }

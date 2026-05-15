@@ -7,6 +7,8 @@ interface Branding {
   logo_url?: string; primary_color?: string; accent_color?: string;
   support_email?: string; support_phone?: string; tagline?: string;
   play_store_url?: string; app_store_url?: string;
+  // "Powered by Premo" footer attribution toggle (white-label control)
+  show_premo_footer?: boolean;
 }
 interface DevProfile {
   id: string; name: string; email: string; phone: string; company: string; website: string;
@@ -341,6 +343,35 @@ export default function DeveloperSettingsPage() {
           <Field label="App Store URL"
             value={profile.branding?.app_store_url || ''}
             onChange={v => setBrand('app_store_url', v)} />
+        </div>
+
+        {/* ── "Powered by Premo" footer toggle ────────────────────────
+            Default true. Switching off removes the attribution from the
+            developer's branded website's user-portal footer — useful for
+            fully white-labelled customer experiences. */}
+        <div className="mt-5 flex items-start justify-between gap-4 p-4 rounded-xl border border-gray-200 bg-gray-50/60">
+          <div className="flex-1">
+            <h3 className="font-bold text-sm text-gray-800">Show &quot;Powered by Premo&quot; in footer</h3>
+            <p className="text-xs text-gray-500 mt-1">
+              Aapki branded website ke footer me <code className="bg-white px-1 rounded text-[10px]">Powered by PREMO</code>
+              {' '}attribution dikhe ya na. Off karne se end customers ko Premo ka naam kahin nahi dikhega — fully white-label experience.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={profile.branding?.show_premo_footer !== false}
+            onClick={() => setBrand('show_premo_footer', profile.branding?.show_premo_footer === false ? true : false)}
+            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${
+              profile.branding?.show_premo_footer !== false ? 'bg-emerald-500' : 'bg-gray-300'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                profile.branding?.show_premo_footer !== false ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
         </div>
 
         {/* Live preview swatch */}
