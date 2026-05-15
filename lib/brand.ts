@@ -15,8 +15,9 @@
 // ═══════════════════════════════════════════════════════════════════════
 
 export type Brand = {
-    firm_id:  string;
-    app_name: string;
+    firm_id:        string;
+    app_name:       string;
+    markup_percent: number;            // % added on top of base price (display + payment)
     branding: {
         logo_url?:          string;
         primary_color?:     string;
@@ -31,8 +32,9 @@ export type Brand = {
 };
 
 export const DEFAULT_BRAND: Brand = {
-    firm_id:  '',
-    app_name: 'PREMO',
+    firm_id:        '',
+    app_name:       'PREMO',
+    markup_percent: 0,                  // Premo's first-party site charges no markup
     branding: {
         primary_color:     '#FDC507',
         accent_color:      '#111827',
@@ -60,13 +62,27 @@ export function getBrand(): Brand {
         const value  = decodeURIComponent(raw.split('=').slice(1).join('='));
         const parsed = JSON.parse(value);
         return {
-            firm_id:  parsed.firm_id  || '',
-            app_name: parsed.app_name || DEFAULT_BRAND.app_name,
-            branding: { ...DEFAULT_BRAND.branding, ...(parsed.branding || {}) },
+            firm_id:        parsed.firm_id  || '',
+            app_name:       parsed.app_name || DEFAULT_BRAND.app_name,
+            markup_percent: Number(parsed.markup_percent) || 0,
+            branding:       { ...DEFAULT_BRAND.branding, ...(parsed.branding || {}) },
         };
     } catch {
         return DEFAULT_BRAND;
     }
+}
+
+/**
+ * Apply the developer's markup to a base price for display. Premo's own
+ * domain (firm_id empty, markup 0) is a no-op. Rounded to integer rupees
+ * — fractional rupees confuse Indian users and the backend re-computes
+ * the exact charge at payment time anyway.
+ */
+export function withMarkup(basePrice: number, brand?: Brand): number {
+    const b = brand || getBrand();
+    if (!b.markup_percent) return basePrice;
+    const marked = basePrice * (1 + b.markup_percent / 100);
+    return Math.round(marked);
 }
 
 /**

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { getAuth, API_BASE, API_ROOT, API_TOKEN, createPaymentOrder, verifyPayment, loadRazorpay, APP_NAME, getWalletBalance } from '@/lib/api';
+import { useBrand, withMarkup, brandFirmHeader } from '@/lib/brand';
 import { Spinner } from '@/components/shared/ui';
 
 export default function HotelDetailPage() {
@@ -33,7 +34,15 @@ export default function HotelDetailPage() {
   const [walletBalance, setWalletBalance] = useState(0);
   const [walletToUse, setWalletToUse]     = useState(0);
 
-  const headers = { 'Content-Type': 'application/json', 'x-api-token': API_TOKEN, Authorization: `Bearer ${auth?.token}` };
+  // brandFirmHeader() includes X-Premo-Firm only on custom domains — backend
+  // uses it to credit the developer's wallet for the markup on this booking.
+  const brand   = useBrand();
+  const headers = {
+    'Content-Type': 'application/json',
+    'x-api-token':  API_TOKEN,
+    Authorization:  `Bearer ${auth?.token}`,
+    ...brandFirmHeader(),
+  };
 
   useEffect(() => {
     async function load() {

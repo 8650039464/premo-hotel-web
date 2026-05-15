@@ -95,7 +95,7 @@ export async function middleware(request: NextRequest) {
         } catch { return null; }
     };
 
-    let firmData: { firm_id: string; branding: Record<string, string>; app_name: string } | null = null;
+    let firmData: { firm_id: string; branding: Record<string, string>; app_name: string; markup_percent?: number } | null = null;
     try {
         let r = await fetchByDomain(4000);
         // Cold start retry — sirf tabhi jab pehli call timeout / connection
@@ -163,9 +163,10 @@ h1{color:#111;font-size:28px}p{color:#555;margin-top:12px}</style></head><body>
     // Cookie for client components — short max-age so changes propagate
     // when developer updates branding (alongside the 60s API cache).
     const brandingPayload = JSON.stringify({
-        firm_id:  firmData.firm_id,
-        app_name: firmData.app_name,
-        branding: firmData.branding,
+        firm_id:        firmData.firm_id,
+        app_name:       firmData.app_name,
+        branding:       firmData.branding,
+        markup_percent: firmData.markup_percent || 0,
     });
     response.cookies.set('premo-brand', brandingPayload, {
         path:     '/',
