@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { getDevAuth, devApi, saveDevAuth } from '@/lib/api';
 import { Spinner } from '@/components/shared/ui';
 
@@ -37,6 +37,53 @@ export default function DeveloperSettingsPage() {
   const [savingSha, setSavingSha]   = useState(false);
   const [shaError, setShaError]     = useState('');
   const [shaSuccess, setShaSuccess] = useState('');
+
+  // Logo upload state — file picker triggers POST /me/logo (multipart).
+  // The endpoint persists logo_url server-side, so we just re-load on success.
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoError, setLogoError]         = useState('');
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleLogoPick(e: React.ChangeEvent<HTMLInputElement>) {
+    setLogoError('');
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Client-side guardrails — backend re-enforces these but we save a round-trip
+    if (file.size > 2 * 1024 * 1024) {
+      setLogoError('Logo 2 MB se chhota hona chahiye');
+      return;
+    }
+    const okTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
+    if (!okTypes.includes(file.type)) {
+      setLogoError('Sirf JPG / PNG / WEBP / SVG allowed hai');
+      return;
+    }
+
+    const auth = getDevAuth();
+    if (!auth) { setLogoError('Login again'); return; }
+
+    setLogoUploading(true);
+    try {
+      const { ok, data } = await devApi.uploadLogo(auth.token, file);
+      if (ok && data?.logo_url) {
+        // Mirror to local state so preview updates instantly
+        if (profile) {
+          setProfile({
+            ...profile,
+            branding: { ...(profile.branding || {}), logo_url: data.logo_url },
+          });
+        }
+        setSuccess('Logo uploaded');
+      } else {
+        setLogoError(data?.error || 'Upload failed');
+      }
+    } catch {
+      setLogoError('Network error');
+    } finally {
+      setLogoUploading(false);
+      if (logoInputRef.current) logoInputRef.current.value = '';
+    }
+  }
 
   async function load() {
     const auth = getDevAuth();
@@ -228,9 +275,48 @@ export default function DeveloperSettingsPage() {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Field label="Logo URL (https)"
-            value={profile.branding?.logo_url || ''}
-            onChange={v => setBrand('logo_url', v)} />
+          {/* Logo picker — uploads to S3 via backend, server saves URL to DB. */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Logo</label>
+            <div className="flex items-center gap-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
+              {profile.branding?.logo_url ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={profile.branding.logo_url}
+                  alt="Current logo"
+                  className="h-16 w-16 object-contain rounded-lg bg-white border border-gray-200"
+                />
+              ) : (
+                <div className="h-16 w-16 rounded-lg bg-white border border-dashed border-gray-300 flex items-center justify-center text-gray-400 text-xs">
+                  No logo
+                </div>
+              )}
+              <div className="flex-1">
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                  className="hidden"
+                  onChange={handleLogoPick}
+                />
+                <button
+                  type="button"
+                  onClick={() => logoInputRef.current?.click()}
+                  disabled={logoUploading}
+                  className="btn-primary px-4 py-2 flex items-center gap-2 disabled:opacity-60"
+                >
+                  {logoUploading ? <Spinner size="sm" /> : <span>📤</span>}
+                  {logoUploading ? 'Uploading...' : (profile.branding?.logo_url ? 'Replace Logo' : 'Upload Logo')}
+                </button>
+                <p className="text-xs text-gray-500 mt-1.5">
+                  JPG / PNG / WEBP / SVG · max 2 MB · square preferred
+                </p>
+                {logoError && (
+                  <p className="text-xs text-red-600 mt-1">⚠️ {logoError}</p>
+                )}
+              </div>
+            </div>
+          </div>
           <Field label="Tagline"
             value={profile.branding?.tagline || ''}
             onChange={v => setBrand('tagline', v)} />

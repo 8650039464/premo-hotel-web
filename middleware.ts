@@ -68,20 +68,39 @@ export async function middleware(request: NextRequest) {
     }
 
     // ── Custom domain — look up developer ────────────────────────────────
+    //
+    //  Render free tier server idle 15 min ke baad sleep ho jaata hai aur
+    //  cold start 30-60 sec leta hai. Single 5 sec request fail ho jaati
+    //  thi → middleware default brand serve kar deta tha → developer ko
+    //  apni branded site ki jagah default Premo dikhti thi (flaky UX).
+    //
+    //  Fix: do attempts with progressively longer timeouts. First attempt
+    //  4 sec — fast path for warm servers. Second attempt 14 sec — gives
+    //  cold start enough room. Vercel Edge ka overall budget 30 sec hai.
+    //  ────────────────────────────────────────────────────────────────────
+    const fetchByDomain = async (timeoutMs: number): Promise<Response | null> => {
+        try {
+            const lookupUrl = `${API_BASE}/p/api/public/by-domain?host=${encodeURIComponent(host)}`;
+            return await fetch(lookupUrl, {
+                signal:  AbortSignal.timeout(timeoutMs),
+                cache:   'no-store',
+                headers: { 'User-Agent': 'premo-edge-middleware' },
+            });
+        } catch { return null; }
+    };
+
     let firmData: { firm_id: string; branding: Record<string, string>; app_name: string } | null = null;
     try {
-        const lookupUrl = `${API_BASE}/p/api/public/by-domain?host=${encodeURIComponent(host)}`;
-        const r = await fetch(lookupUrl, {
-            // Edge fetch: short timeout (Vercel kills middleware after 30s anyway,
-            // but we want to fail fast and let the user retry).
-            signal: AbortSignal.timeout(5000),
-            // Don't send cookies, this is server-to-server
-            cache: 'no-store',
-            headers: { 'User-Agent': 'premo-edge-middleware' },
-        });
-        if (r.ok) {
+        let r = await fetchByDomain(4000);
+        // Cold start retry — sirf tabhi jab pehli call timeout / connection
+        // error se fail hui (r === null). 4xx / 5xx pe retry nahi karte.
+        if (r === null) {
+            r = await fetchByDomain(14_000);
+        }
+
+        if (r && r.ok) {
             firmData = await r.json();
-        } else if (r.status === 404) {
+        } else if (r && r.status === 404) {
             // Unknown custom domain — show friendly page
             return new NextResponse(
                 `<!DOCTYPE html><html><head><title>Not provisioned</title>
@@ -93,10 +112,10 @@ h1{color:#111;font-size:28px}p{color:#555;margin-top:12px}</style></head><body>
                 { status: 404, headers: { 'content-type': 'text/html; charset=utf-8' } }
             );
         }
-        // Other status: continue with default brand to keep site usable
+        // Other status (5xx, or both attempts failed): continue with default
+        // brand so the site remains usable instead of erroring out.
     } catch (e) {
         console.error('[middleware] by-domain fetch failed:', (e as Error).message);
-        // Don't block traffic on transient API hiccup
         return NextResponse.next();
     }
 

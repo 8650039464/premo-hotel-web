@@ -277,6 +277,25 @@ export const devApi = {
     devFetch('/me/play-sha1', t),
   playSha1Set: (t: string, sha1: string) =>
     devFetch('/me/play-sha1', t, { method: 'POST', body: JSON.stringify({ sha1 }) }),
+
+  // Logo upload — multipart, NOT JSON. devFetch defaults Content-Type to
+  // JSON which breaks multer; we call fetch directly here so the browser
+  // sets the multipart boundary automatically.
+  uploadLogo: async (t: string, file: File) => {
+    const fd = new FormData();
+    fd.append('logo', file);
+    const res = await fetch(`${API_ROOT}/api/developers/me/logo`, {
+      method:  'POST',
+      headers: {
+        'x-api-token':  API_TOKEN,
+        Authorization:  `Bearer ${t}`,
+        // NO Content-Type — let browser set it with boundary
+      },
+      body: fd,
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, data };
+  },
 };
 
 // ═══════════════════════════════════════════════════════════════
