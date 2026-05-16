@@ -300,7 +300,9 @@ export default function HotelDetailPage() {
                   <div className="flex flex-wrap gap-1.5 mb-4">
                     {(room.pricing || []).map((p: any) => (
                       <span key={p.hours} className={`px-2.5 py-1 rounded-lg text-xs font-bold ${selDuration === p.hours ? 'bg-primary' : 'bg-gray-100 text-gray-600'}`}>
-                        {p.hours}hr · ₹{p.price}
+                        {/* withMarkup applies brokerage + dev markup (compound)
+                            so chip price matches the modal + Razorpay charge */}
+                        {p.hours}hr · ₹{withMarkup(p.price, brand)}
                       </span>
                     ))}
                   </div>

@@ -83,11 +83,15 @@ export function getBrand(): Brand {
 
 // ─── Premo brokerage cache (default domain) ──────────────────────────
 //  On Premo's own domain there's no brand cookie, so the brokerage % isn't
-//  baked in. We fetch it once per page load and cache it in localStorage
-//  (TTL 5 min) so the user/hotel pages can apply it to displayed prices
-//  without each component making its own request.
+//  baked in. We fetch it on page load and keep it in localStorage briefly
+//  so multiple components on the same page don't each hit the API.
+//
+//  TTL is intentionally SHORT (30s) so super-admin commission changes
+//  reflect quickly on user-facing prices — earlier 5 min cache made it
+//  feel like changes weren't propagating. Server-side Cache-Control on
+//  /commission/public is also 30s so we don't hammer Mongo.
 const BROKERAGE_CACHE_KEY = 'premo-brokerage-cache';
-const BROKERAGE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const BROKERAGE_CACHE_TTL = 30 * 1000; // 30 seconds
 
 export function getCachedBrokeragePercent(): number {
     if (typeof window === 'undefined') return 0;
@@ -108,25 +112,29 @@ export function setCachedBrokeragePercent(pct: number): void {
 }
 
 /**
- * Apply the full additive pricing to a hotel-set cost for display:
- *   display = hotelCost + (hotelCost * brokerage%) + (hotelCost * markup%)
+ * Apply the COMPOUND/CASCADING price to a hotel-set cost for display:
+ *   afterBrokerage = hotelCost * (1 + brokerage%)
+ *   total          = afterBrokerage * (1 + markup%)
  *
- * On Premo's own domain: only brokerage is added (markup = 0).
- * On a developer's custom domain: both brokerage and developer markup are added.
+ * Premo default domain: markup=0 → display = hotelCost * (1 + brokerage%)
+ * Developer custom domain: both stack → display = hotelCost * (1+brokerage%) * (1+markup%)
  *
- * The brokerage % comes from the brand cookie (custom domain) OR the
- * localStorage cache (Premo default domain — see fetchAndCacheBrokerage).
+ * IMPORTANT: this is cascading multiplication, NOT a flat additive
+ * (`hotelCost * (1 + (b+m)/100)`) which produces a different (smaller)
+ * total. The backend `calculateBookingCommission` uses the same compound
+ * formula so display and Razorpay charge always match.
  *
  * Rounded to integer rupees — backend re-computes the exact charge at
- * payment time, this is purely for display consistency.
+ * payment time, this is purely for display.
  */
 export function withMarkup(basePrice: number, brand?: Brand): number {
     const b = brand || getBrand();
     const brokeragePct = b.premo_brokerage_percent || getCachedBrokeragePercent();
     const markupPct    = b.markup_percent || 0;
     if (!brokeragePct && !markupPct) return basePrice;
-    const marked = basePrice * (1 + (brokeragePct + markupPct) / 100);
-    return Math.round(marked);
+    const afterBrokerage = basePrice * (1 + brokeragePct / 100);
+    const total          = afterBrokerage * (1 + markupPct / 100);
+    return Math.round(total);
 }
 
 /**

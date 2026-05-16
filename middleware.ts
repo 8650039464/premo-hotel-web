@@ -177,7 +177,11 @@ h1{color:#111;font-size:28px}p{color:#555;margin-top:12px}</style></head><body>
     });
     response.cookies.set('premo-brand', brandingPayload, {
         path:     '/',
-        maxAge:   60,                  // refreshed every minute
+        // 30s — short enough that super-admin brokerage changes and dev
+        // markup updates propagate to live custom-domain visitors quickly.
+        // The middleware itself re-fetches on every request anyway; this
+        // cookie is the client-side cache.
+        maxAge:   30,
         sameSite: 'lax',
         httpOnly: false,               // client JS needs to read it
     });
