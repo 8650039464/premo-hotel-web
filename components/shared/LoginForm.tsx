@@ -99,11 +99,11 @@ export default function LoginForm({ role, onSuccess, allowedRoles, title, subtit
   }, []);
 
   // Google credential handler — same flow as email login on success
-  async function handleGoogle(idToken: string) {
+  async function handleGoogle(idToken: string, fallbackName?: string) {
     if (!googleRole) return;
     setError(''); setGoogleBusy(true);
     try {
-      const { ok, status, data } = await googleLogin(idToken, googleRole);
+      const { ok, status, data } = await googleLogin(idToken, googleRole, fallbackName);
       if (ok) {
         const userRole = data.auth?.role;
         if (!allowedRoles.includes(userRole)) {
@@ -118,9 +118,10 @@ export default function LoginForm({ role, onSuccess, allowedRoles, title, subtit
         });
         onSuccess(data);
       } else if (status === 403) {
-        if (data.message === 'pending')        setError(data.detail || 'Your account is under admin review. Please wait for approval.');
-        else if (data.message === 'rejected')  setError('Your account has been rejected. Contact support.');
-        else                                   setError(data.detail || data.error || 'Access denied.');
+        if (data.message === 'pending')                setError(data.detail || 'Your account is under admin review. Please wait for approval.');
+        else if (data.message === 'rejected')          setError('Your account has been rejected. Contact support.');
+        else if (data.message === 'wrong_auth_method') setError(data.detail || 'Yeh email password se register hua hai. Login form se sign in karo.');
+        else                                           setError(data.detail || data.error || 'Access denied.');
       } else {
         setError(data.error || data.message || 'Google login failed.');
       }
@@ -155,9 +156,10 @@ export default function LoginForm({ role, onSuccess, allowedRoles, title, subtit
         });
         onSuccess(data);
       } else if (res.status === 403) {
-        if (data.message === 'pending')  setError('Your account is under admin review. Please wait for approval.');
-        else if (data.message === 'rejected') setError('Your account has been rejected. Contact support.');
-        else setError(data.detail || 'Access denied.');
+        if (data.message === 'pending')                setError('Your account is under admin review. Please wait for approval.');
+        else if (data.message === 'rejected')          setError('Your account has been rejected. Contact support.');
+        else if (data.message === 'wrong_auth_method') setError(data.detail || 'Yeh email Google se register hua hai. "Continue with Google" use karo.');
+        else                                           setError(data.detail || 'Access denied.');
       } else {
         setError(data.message || 'Login failed. Check your email and password.');
       }

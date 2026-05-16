@@ -30,8 +30,11 @@ import { Spinner } from './ui';
 import { signInWithGooglePopup } from '@/lib/firebase';
 
 export interface GoogleLoginButtonProps {
-  /** Called with the underlying Google credential (id_token) on success. */
-  onCredential: (idToken: string) => void | Promise<void>;
+  /** Called with the underlying Google credential (id_token) on success.
+   *  `fallbackName` is the displayName from the Firebase user object — pass
+   *  it through to backend so accounts never end up with "Google User" if
+   *  Google omits the `name` claim from the id_token payload. */
+  onCredential: (idToken: string, fallbackName?: string) => void | Promise<void>;
   /** Optional error reporter — used when the popup is closed or blocked. */
   onError?: (msg: string) => void;
   /** Button text variant. */
@@ -61,8 +64,8 @@ export default function GoogleLoginButton({
     if (busy || pending) return;
     setPending(true);
     try {
-      const { idToken } = await signInWithGooglePopup();
-      await onCredential(idToken);
+      const { idToken, user } = await signInWithGooglePopup();
+      await onCredential(idToken, user.name);
     } catch (e: unknown) {
       // User closed the popup / blocked it / network error
       const code = (e as { code?: string })?.code || '';

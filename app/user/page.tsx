@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getAuth, API_BASE, API_ROOT, API_TOKEN, formatDT } from '@/lib/api';
+import { useBrand, withMarkup } from '@/lib/brand';
 import { Spinner, EmptyState, StatusBadge } from '@/components/shared/ui';
 import Link from 'next/link';
 
@@ -28,6 +29,11 @@ export default function UserHomePage() {
   const [duration, setDuration] = useState<number | null>(null);
   const [minPrice, setMinPrice] = useState(0);
   const [maxPrice, setMaxPrice] = useState(5000);
+
+  // Brand-aware price display: applies Premo brokerage + dev markup (custom
+  // domain only). On Premo's default domain, just brokerage. Backend
+  // re-computes authoritatively at payment time.
+  const brand = useBrand();
 
   const headers = { 'Content-Type': 'application/json', 'x-api-token': API_TOKEN, ...(auth?.token ? { Authorization: `Bearer ${auth.token}` } : {}) };
 
@@ -71,7 +77,9 @@ export default function UserHomePage() {
     rooms.forEach((r: any) => (r.pricing || []).forEach((p: any) => {
       if (min === null || p.price < min) min = p.price;
     }));
-    return min;
+    // Apply brokerage + markup so listings reflect the user-facing total
+    // (matches what the hotel detail page will show).
+    return min !== null ? withMarkup(min, brand) : null;
   }
 
   const durations = [3, 6, 12, 24];

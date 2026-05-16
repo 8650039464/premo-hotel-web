@@ -7,7 +7,7 @@
 //  Image srcs & legacy calls are rewritten to use API_ROOT.
 // ─────────────────────────────────────────────────────────────
 
-export const API_BASE  = 'https://nxh3mzgtr5.ap-south-1.awsapprunner.com';
+export const API_BASE  = 'https://hotel-api-master.onrender.com';
 export const API_ROOT  = `${API_BASE}/p`;                    // firm-scoped root
 export const API_TOKEN = 'premo_hotel_f0eb62d75c7516f4';
 export const WHATSAPP_NUMBER  = '918650039464'; // ← apna number daalo
@@ -69,13 +69,49 @@ export function clearAuth() {
 //  Backend default role is 'user' — pass role explicitly for hotel/sales
 //  so the right Auth doc (role-scoped) is matched / created.
 //  Super admin intentionally does NOT support Google login.
-export async function googleLogin(idToken: string, role: 'user' | 'hotel' | 'sales' = 'user') {
+export async function googleLogin(
+  idToken: string,
+  role: 'user' | 'hotel' | 'sales' = 'user',
+  fallbackName?: string,
+) {
   const res = await fetch(`${API_ROOT}/api/auth/google`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-token': API_TOKEN },
-    body:    JSON.stringify({ id_token: idToken, role }),
+    body:    JSON.stringify({
+      id_token:      idToken,
+      role,
+      // Pass Firebase's user.displayName as a safety net for rare cases
+      // where the underlying Google id_token doesn't include the `name`
+      // claim (denied profile scope etc). Backend uses this only if its
+      // own resolution chain comes up empty.
+      ...(fallbackName ? { fallback_name: fallbackName } : {}),
+    }),
   });
   return { ok: res.ok, status: res.status, data: await res.json().catch(() => ({})) };
+}
+
+// Fetches Premo's global brokerage % for the user-facing display layer.
+// Called from layouts (user, hotel-detail) on Premo's default domain so
+// they can compute marked-up prices. On custom domains the brand cookie
+// already contains this value; this fetch is the fallback.
+export async function fetchAndCacheBrokeragePercent(): Promise<number> {
+  try {
+    const res  = await fetch(`${API_ROOT}/api/commission/public`, {
+      headers: { 'x-api-token': API_TOKEN },
+    });
+    if (!res.ok) return 0;
+    const data = await res.json().catch(() => ({}));
+    const pct  = Number(data?.percentage) || 0;
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(
+          'premo-brokerage-cache',
+          JSON.stringify({ pct, ts: Date.now() }),
+        );
+      } catch { /* quota */ }
+    }
+    return pct;
+  } catch { return 0; }
 }
 
 export function formatDT(iso?: string) {
@@ -138,20 +174,26 @@ export async function cancelBooking(token: string, bookingId: string) {
 }
 
 // Payment APIs
+// IMPORTANT — include `brandFirmHeader()` so backend's firmAuth middleware
+// can attribute the booking to the right developer wallet (custom domain).
+// On Premo's default domain this returns {} and payment falls back to
+// platform owner (markup = 0).
+import { brandFirmHeader } from './brand';
+
 export async function createPaymentOrder(token: string, payload: object) {
   const res = await fetch(`${API_ROOT}/api/payment/create-order`, {
-    method: 'POST',
-    headers: getHeaders(token),
-    body: JSON.stringify(payload),
+    method:  'POST',
+    headers: { ...getHeaders(token), ...brandFirmHeader() },
+    body:    JSON.stringify(payload),
   });
   return { ok: res.ok, status: res.status, data: await res.json() };
 }
 
 export async function verifyPayment(token: string, payload: object) {
   const res = await fetch(`${API_ROOT}/api/payment/verify`, {
-    method: 'POST',
-    headers: getHeaders(token),
-    body: JSON.stringify(payload),
+    method:  'POST',
+    headers: { ...getHeaders(token), ...brandFirmHeader() },
+    body:    JSON.stringify(payload),
   });
   return { ok: res.ok, data: await res.json() };
 }

@@ -6,11 +6,12 @@ import { getAuth, clearAuth } from '@/lib/api';
 import { ToastContainer } from '@/components/shared/ui';
 
 const NAV = [
-  { href: '/hotel-admin', label: 'Dashboard', icon: '📊' },
-  { href: '/hotel-admin/bookings', label: 'Bookings', icon: '📋' },
-  { href: '/hotel-admin/property', label: 'Property', icon: '🏩' },
-  { href: '/hotel-admin/complaints', label: 'Complaints', icon: '💬' },
-  { href: '/hotel-admin/account', label: 'Account', icon: '👤' },
+  { href: '/hotel-admin',             label: 'Dashboard',  icon: '📊' },
+  { href: '/hotel-admin/bookings',    label: 'Bookings',   icon: '📋' },
+  { href: '/hotel-admin/property',    label: 'Property',   icon: '🏩' },
+  { href: '/hotel-admin/earnings',    label: 'Earnings',   icon: '💰' },
+  { href: '/hotel-admin/complaints',  label: 'Complaints', icon: '💬' },
+  { href: '/hotel-admin/account',     label: 'Account',    icon: '👤' },
 ];
 
 const PUBLIC = ['/hotel-admin/login', '/hotel-admin/register'];

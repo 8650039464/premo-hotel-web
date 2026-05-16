@@ -15,9 +15,16 @@
 // ═══════════════════════════════════════════════════════════════════════
 
 export type Brand = {
-    firm_id:        string;
-    app_name:       string;
-    markup_percent: number;            // % added on top of base price (display + payment)
+    firm_id:                 string;
+    app_name:                string;
+    // Developer's markup % added on top of hotel cost. 0 on Premo's own
+    // domain. Set from the brand cookie populated by the edge middleware.
+    markup_percent:          number;
+    // Premo's platform brokerage %. Same value across all hosts (Premo's
+    // own domain AND custom developer domains both add this on top of the
+    // hotel's listed cost). Fetched from backend by middleware on custom
+    // domains; on Premo's own domain, frontend lazy-fetches via /commission/public.
+    premo_brokerage_percent: number;
     branding: {
         logo_url?:          string;
         primary_color?:     string;
@@ -32,9 +39,10 @@ export type Brand = {
 };
 
 export const DEFAULT_BRAND: Brand = {
-    firm_id:        '',
-    app_name:       'PREMO',
-    markup_percent: 0,                  // Premo's first-party site charges no markup
+    firm_id:                 '',
+    app_name:                'PREMO',
+    markup_percent:          0,         // Premo's first-party site has no dev markup
+    premo_brokerage_percent: 0,         // overwritten on first /commission/public fetch
     branding: {
         primary_color:     '#FDC507',
         accent_color:      '#111827',
@@ -62,26 +70,62 @@ export function getBrand(): Brand {
         const value  = decodeURIComponent(raw.split('=').slice(1).join('='));
         const parsed = JSON.parse(value);
         return {
-            firm_id:        parsed.firm_id  || '',
-            app_name:       parsed.app_name || DEFAULT_BRAND.app_name,
-            markup_percent: Number(parsed.markup_percent) || 0,
-            branding:       { ...DEFAULT_BRAND.branding, ...(parsed.branding || {}) },
+            firm_id:                 parsed.firm_id  || '',
+            app_name:                parsed.app_name || DEFAULT_BRAND.app_name,
+            markup_percent:          Number(parsed.markup_percent) || 0,
+            premo_brokerage_percent: Number(parsed.premo_brokerage_percent) || 0,
+            branding:                { ...DEFAULT_BRAND.branding, ...(parsed.branding || {}) },
         };
     } catch {
         return DEFAULT_BRAND;
     }
 }
 
+// ─── Premo brokerage cache (default domain) ──────────────────────────
+//  On Premo's own domain there's no brand cookie, so the brokerage % isn't
+//  baked in. We fetch it once per page load and cache it in localStorage
+//  (TTL 5 min) so the user/hotel pages can apply it to displayed prices
+//  without each component making its own request.
+const BROKERAGE_CACHE_KEY = 'premo-brokerage-cache';
+const BROKERAGE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+export function getCachedBrokeragePercent(): number {
+    if (typeof window === 'undefined') return 0;
+    try {
+        const raw = localStorage.getItem(BROKERAGE_CACHE_KEY);
+        if (!raw) return 0;
+        const parsed = JSON.parse(raw);
+        if (Date.now() - parsed.ts > BROKERAGE_CACHE_TTL) return 0;
+        return Number(parsed.pct) || 0;
+    } catch { return 0; }
+}
+
+export function setCachedBrokeragePercent(pct: number): void {
+    if (typeof window === 'undefined') return;
+    try {
+        localStorage.setItem(BROKERAGE_CACHE_KEY, JSON.stringify({ pct, ts: Date.now() }));
+    } catch { /* quota exceeded — ignore */ }
+}
+
 /**
- * Apply the developer's markup to a base price for display. Premo's own
- * domain (firm_id empty, markup 0) is a no-op. Rounded to integer rupees
- * — fractional rupees confuse Indian users and the backend re-computes
- * the exact charge at payment time anyway.
+ * Apply the full additive pricing to a hotel-set cost for display:
+ *   display = hotelCost + (hotelCost * brokerage%) + (hotelCost * markup%)
+ *
+ * On Premo's own domain: only brokerage is added (markup = 0).
+ * On a developer's custom domain: both brokerage and developer markup are added.
+ *
+ * The brokerage % comes from the brand cookie (custom domain) OR the
+ * localStorage cache (Premo default domain — see fetchAndCacheBrokerage).
+ *
+ * Rounded to integer rupees — backend re-computes the exact charge at
+ * payment time, this is purely for display consistency.
  */
 export function withMarkup(basePrice: number, brand?: Brand): number {
     const b = brand || getBrand();
-    if (!b.markup_percent) return basePrice;
-    const marked = basePrice * (1 + b.markup_percent / 100);
+    const brokeragePct = b.premo_brokerage_percent || getCachedBrokeragePercent();
+    const markupPct    = b.markup_percent || 0;
+    if (!brokeragePct && !markupPct) return basePrice;
+    const marked = basePrice * (1 + (brokeragePct + markupPct) / 100);
     return Math.round(marked);
 }
 

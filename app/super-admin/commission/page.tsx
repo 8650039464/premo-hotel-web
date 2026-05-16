@@ -150,19 +150,25 @@ export default function SuperAdminCommissionPage() {
         </div>
 
         {form.type === 'percentage' ? (
-          <Field label="Commission Percentage (%)" suffix="%" value={form.percentage} onChange={v => set('percentage', v)} />
+          <Field
+            label="Premo Brokerage (% of hotel cost)"
+            suffix="%"
+            value={form.percentage}
+            onChange={v => set('percentage', v)}
+            hint="Premo's earning on top of what the hotel sets. Hotel always keeps 100% of their listed price; this brokerage is added to the user-facing price."
+          />
         ) : (
-          <Field label="Fixed Amount (₹)" suffix="₹" value={form.fixed_amount} onChange={v => set('fixed_amount', v)} />
+          <Field label="Fixed Brokerage Amount (₹ per booking)" suffix="₹" value={form.fixed_amount} onChange={v => set('fixed_amount', v)} />
         )}
 
         <div className="border-t border-gray-100 pt-5">
-          <h3 className="font-bold text-gray-800 mb-3">🏨 Checkout Split</h3>
+          <h3 className="font-bold text-gray-800 mb-3">🏨 Hotel Earnings Reference</h3>
           <Field
-            label="Hotel's share at checkout (%)"
+            label="Hotel's effective share % (auto)"
             suffix="%"
             value={form.checkout_hotel_share_percent}
             onChange={v => set('checkout_hotel_share_percent', v)}
-            hint="Baaki Premo/developer ko jaata hai."
+            hint="Legacy field. In the additive model hotel always keeps 100% of their listed cost. Set to 100 to disable any subtraction. Brokerage is added on top, not deducted."
           />
         </div>
 

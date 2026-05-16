@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { getAuth, clearAuth, getWalletBalance } from '@/lib/api';
+import { getAuth, clearAuth, getWalletBalance, fetchAndCacheBrokeragePercent } from '@/lib/api';
 import { useBrand } from '@/lib/brand';
 import { ToastContainer } from '@/components/shared/ui';
 
@@ -37,6 +37,11 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
 
     // Load wallet
     getWalletBalance(auth.token).then(d => setWalletBalance(d.wallet_amount ?? 0));
+
+    // Pre-fetch Premo's brokerage % so price displays apply it immediately.
+    // On custom domains the brand cookie already has this baked in, but
+    // calling here is harmless (cache hit on subsequent fetches).
+    fetchAndCacheBrokeragePercent();
   }, [pathname]);
 
   if (!checked) return null;

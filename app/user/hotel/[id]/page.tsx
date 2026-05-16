@@ -69,7 +69,16 @@ export default function HotelDetailPage() {
 
   function photoUrl(p: string) { return p.startsWith('http') ? p : `${API_BASE}${p}`; }
 
+  // Returns the display price for a given duration — applies the additive
+  // markup (Premo brokerage + developer markup) so the user always sees
+  // the actual amount they'll pay. Backend re-computes at payment time
+  // as the authoritative source; this is purely for display.
   function getPriceForDuration(room: any, dur: number) {
+    const pricing = room.pricing || [];
+    const match = pricing.find((p: any) => p.hours === dur);
+    return match ? withMarkup(match.price, brand) : null;
+  }
+  function getRawPriceForDuration(room: any, dur: number) {
     const pricing = room.pricing || [];
     const match = pricing.find((p: any) => p.hours === dur);
     return match ? match.price : null;
