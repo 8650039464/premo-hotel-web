@@ -7,7 +7,7 @@
 //  Image srcs & legacy calls are rewritten to use API_ROOT.
 // ─────────────────────────────────────────────────────────────
 
-export const API_BASE  = 'https://nxh3mzgtr5.ap-south-1.awsapprunner.com';
+export const API_BASE  = 'https://hotel-api-master.onrender.com';
 export const API_ROOT  = `${API_BASE}/p`;                    // firm-scoped root
 export const API_TOKEN = 'premo_hotel_f0eb62d75c7516f4';
 export const WHATSAPP_NUMBER  = '918650039464'; // ← apna number daalo
@@ -383,6 +383,58 @@ export const salesApi = {
     salesFetch('/register-hotel', { method: 'POST', body: JSON.stringify(body) }),
   requestPayout:  (amount: number) =>
     salesFetch('/request-payout', { method: 'POST', body: JSON.stringify({ amount }) }),
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  PAYOUT API (RazorpayX-backed) — same shape across 3 portals
+//  Backend routes: /p/api/payouts/{hotel|sales|developer}/{details|request|history}
+//  Kind is selected at call-site; auth varies per portal:
+//    hotel/sales → JWT in localStorage (TOKEN_KEY) — same as user
+//    developer   → JWT in DEV_TOKEN_KEY (dev portal)
+// ═══════════════════════════════════════════════════════════════
+type PayoutKind = 'hotel' | 'sales' | 'developer';
+
+async function payoutFetch(
+  kind: PayoutKind,
+  subpath: string,
+  init: RequestInit = {},
+) {
+  // Developer portal uses its own token storage; hotel/sales use the
+  // shared user TOKEN_KEY. saveDevAuth/getDevAuth manages dev side.
+  let token: string | null = null;
+  if (typeof window !== 'undefined') {
+    if (kind === 'developer') {
+      const auth = getDevAuth();
+      token = auth?.token || null;
+    } else {
+      token = localStorage.getItem(TOKEN_KEY);
+    }
+  }
+  const url = `${API_ROOT}/api/payouts/${kind}${subpath}`;
+  const res = await fetch(url, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-token':  API_TOKEN,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init.headers || {}),
+    },
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, data };
+}
+
+export const payoutApi = {
+  getDetails:   (kind: PayoutKind) => payoutFetch(kind, '/details'),
+  saveDetails:  (kind: PayoutKind, body: Record<string, unknown>) =>
+    payoutFetch(kind, '/details', { method: 'PUT', body: JSON.stringify(body) }),
+  request:      (kind: PayoutKind, amount: number, idempotency_key?: string) =>
+    payoutFetch(kind, '/request', {
+      method: 'POST',
+      body: JSON.stringify({ amount, ...(idempotency_key ? { idempotency_key } : {}) }),
+    }),
+  history:      (kind: PayoutKind, limit = 25, skip = 0) =>
+    payoutFetch(kind, `/history?limit=${limit}&skip=${skip}`),
 };
 
 // Public: list of active cities (used by sales register-hotel form for city dropdown)

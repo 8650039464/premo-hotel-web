@@ -181,7 +181,7 @@ h1{color:#111;font-size:28px}p{color:#555;margin-top:12px}</style></head><body>
         // markup updates propagate to live custom-domain visitors quickly.
         // The middleware itself re-fetches on every request anyway; this
         // cookie is the client-side cache.
-        maxAge:   300,
+        maxAge:   30,
         sameSite: 'lax',
         httpOnly: false,               // client JS needs to read it
     });
