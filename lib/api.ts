@@ -7,7 +7,7 @@
 //  Image srcs & legacy calls are rewritten to use API_ROOT.
 // ─────────────────────────────────────────────────────────────
 
-export const API_BASE  = 'https://hotel-api-master.onrender.com';
+export const API_BASE  = 'https://nxh3mzgtr5.ap-south-1.awsapprunner.com';
 export const API_ROOT  = `${API_BASE}/p`;                    // firm-scoped root
 export const API_TOKEN = 'premo_hotel_f0eb62d75c7516f4';
 export const WHATSAPP_NUMBER  = '918650039464'; // ← apna number daalo
