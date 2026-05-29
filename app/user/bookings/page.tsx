@@ -128,7 +128,7 @@ export default function UserBookingsPage() {
                     )}
                   </div>
                   <div className="text-right">
-                    <p className="text-xl font-black text-primary">₹{b.total_price}</p>
+                    <p className="text-xl font-black text-primary">₹{b.display_amount ?? b.charged_amount ?? b.total_price}</p>
                     <StatusBadge status={b.status} />
                   </div>
                 </div>

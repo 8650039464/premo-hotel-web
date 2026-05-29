@@ -134,10 +134,13 @@ export default function HotelBookingsPage() {
                       </div>
                       {phone && <p className="text-gray-500 text-sm">{phone}</p>}
                       {room && <p className="text-gray-600 text-sm">{room}</p>}
+                      {b.booking_source && (
+                        <p className="text-xs text-gray-400 mt-0.5">🌐 via {b.booking_source}</p>
+                      )}
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-lg font-black text-primary">₹{b.total_price}</p>
+                    <p className="text-lg font-black text-primary">₹{b.display_amount ?? b.charged_amount ?? b.total_price}</p>
                     <StatusBadge status={b.status} />
                     <p className="text-xs text-gray-400 mt-1 capitalize">{b.payment_method || 'cash'}</p>
                   </div>
