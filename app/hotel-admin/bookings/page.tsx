@@ -47,10 +47,29 @@ export default function HotelBookingsPage() {
 
   async function reload() { if (hotelId) await loadData(hotelId); }
 
+  // async function updateStatus(bookingId: string, status: string) {
+  //   await fetch(`${API_ROOT}/api/bookings/update/${bookingId}`, { method: 'PUT', headers, body: JSON.stringify({ status }) });
+  //   reload();
+  // }
+
   async function updateStatus(bookingId: string, status: string) {
-    await fetch(`${API_ROOT}/api/bookings/update/${bookingId}`, { method: 'PUT', headers, body: JSON.stringify({ status }) });
+    if (status === 'checked_out') {
+        const res = await fetch(`${API_ROOT}/api/payment/checkout/${bookingId}`, {
+            method: 'POST', headers,
+        });
+        if (!res.ok) {
+            const d = await res.json();
+            alert(d.error || 'Checkout failed');
+            return;
+        }
+    } else {
+        await fetch(`${API_ROOT}/api/bookings/update/${bookingId}`, {
+            method: 'PUT', headers,
+            body: JSON.stringify({ status }),
+        });
+    }
     reload();
-  }
+}
 
   async function verifyCheckin(bookingId: string) {
     if (otp.length !== 6) { alert('Enter 6-digit OTP'); return; }
