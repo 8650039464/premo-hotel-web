@@ -16,7 +16,10 @@ export default function UserLoginPage() {
       registerText="Register here"
       forgotLink="/forgot-password?role=user"
       googleRole="user"
-      onSuccess={() => router.replace('/user')}
+      onSuccess={() => {
+        const redirectTo = new URLSearchParams(window.location.search).get('redirect');
+        router.replace(redirectTo || '/user');
+      }}
     />
   );
 }
