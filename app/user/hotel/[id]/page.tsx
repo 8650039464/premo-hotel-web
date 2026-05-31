@@ -308,19 +308,7 @@ export default function HotelDetailPage() {
                   </div>
 
                   {available ? (
-                    // <button onClick={() => { setBookingRoom(room); setWalletToUse(0); }}
-                    //   disabled={!selDuration || !selDate || !selTime}
-                    //   className="w-full btn-primary py-2.5 disabled:opacity-40">
-                    //   {!selDuration ? 'Select duration first' : !selDate || !selTime ? 'Select date & time' : 'Book This Room'}
-                    // </button>
-                    <button onClick={() => {
-                        if (!auth?.token) {
-                            router.push('/user/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search));
-                            return;
-                        }
-                        setBookingRoom(room);
-                        setWalletToUse(0);
-                      }}
+                    <button onClick={() => { setBookingRoom(room); setWalletToUse(0); }}
                       disabled={!selDuration || !selDate || !selTime}
                       className="w-full btn-primary py-2.5 disabled:opacity-40">
                       {!selDuration ? 'Select duration first' : !selDate || !selTime ? 'Select date & time' : 'Book This Room'}

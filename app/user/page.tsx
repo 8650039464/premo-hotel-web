@@ -37,15 +37,9 @@ export default function UserHomePage() {
 
   const headers = { 'Content-Type': 'application/json', 'x-api-token': API_TOKEN, ...(auth?.token ? { Authorization: `Bearer ${auth.token}` } : {}) };
 
-  // useEffect(() => {
-  //   fetch(`${API_ROOT}/api/cities/all`, { headers })
-  //     .then(r => r.json()).then(setCities).catch(() => {});
-  // }, []);
   useEffect(() => {
     fetch(`${API_ROOT}/api/cities/all`, { headers })
       .then(r => r.json()).then(setCities).catch(() => {});
-    // Page load pe seedha hotels fetch karo
-    search();
   }, []);
 
   async function search() {
@@ -169,7 +163,12 @@ export default function UserHomePage() {
         <EmptyState icon="🏨" title="No hotels found" desc="Try changing your filters or search in a different city" />
       )}
 
-      
+      {!loading && !searched && (
+        <div className="text-center py-16 text-gray-400">
+          <div className="text-5xl mb-3">🏨</div>
+          <p className="font-medium">Set your preferences and search for hotels</p>
+        </div>
+      )}
 
       {!loading && hotels.length > 0 && (
         <div>
