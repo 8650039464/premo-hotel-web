@@ -29,6 +29,9 @@ import {
     getAuth,
     GoogleAuthProvider,
     signInWithPopup,
+    RecaptchaVerifier,
+    signInWithPhoneNumber,
+    ConfirmationResult,
     Auth,
     UserCredential,
 } from 'firebase/auth';
@@ -91,4 +94,24 @@ export async function signInWithGooglePopup(): Promise<{
             photo: u.photoURL   || '',
         },
     };
+}
+// ─── Phone OTP via Firebase ───────────────────────────────────────
+export async function sendPhoneOtp(
+    phone: string,
+    recaptchaContainerId: string
+): Promise<ConfirmationResult> {
+    const auth = getFirebaseAuth();
+    const recaptcha = new RecaptchaVerifier(auth, recaptchaContainerId, {
+        size: 'invisible',
+    });
+    const formattedPhone = phone.startsWith('+') ? phone : '+91' + phone;
+    return await signInWithPhoneNumber(auth, formattedPhone, recaptcha);
+}
+
+export async function verifyPhoneOtp(
+    confirmationResult: ConfirmationResult,
+    otp: string
+): Promise<string> {
+    const result = await confirmationResult.confirm(otp);
+    return await result.user.getIdToken();
 }

@@ -1,9 +1,11 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { API_ROOT, API_TOKEN } from '@/lib/api';
+import { sendPhoneOtp, verifyPhoneOtp } from '@/lib/firebase';
 import { Spinner } from '@/components/shared/ui';
+import type { ConfirmationResult } from 'firebase/auth';
 
 export default function UserRegisterPage() {
   const router = useRouter();
@@ -16,6 +18,7 @@ export default function UserRegisterPage() {
   const [countdown, setCountdown] = useState(0);
   const [error, setError]         = useState('');
   const [success, setSuccess]     = useState('');
+  const confirmationRef = useRef<ConfirmationResult | null>(null);
 
   const headers = { 'Content-Type': 'application/json', 'x-api-token': API_TOKEN };
 
@@ -30,28 +33,27 @@ export default function UserRegisterPage() {
     if (form.phone.length < 10) { setError('Enter a valid phone number'); return; }
     setOtpLoading(true); setError('');
     try {
-      const res = await fetch(`${API_ROOT}/api/otp/send`, {
-        method: 'POST', headers,
-        body: JSON.stringify({ identifier: form.phone, type: 'phone', purpose: 'register' }),
-      });
-      if (res.ok) { setPhoneOtpSent(true); setSuccess('OTP sent to your phone!'); startCountdown(); }
-      else { const d = await res.json(); setError(d.error || 'Failed to send OTP'); }
-    } catch { setError('Connection error'); }
-    finally { setOtpLoading(false); }
+      const result = await sendPhoneOtp(form.phone, 'recaptcha-container');
+      confirmationRef.current = result;
+      setPhoneOtpSent(true);
+      setSuccess('OTP sent to your phone!');
+      startCountdown();
+    } catch (e: any) {
+      setError(e.message || 'Failed to send OTP');
+    } finally { setOtpLoading(false); }
   }
 
   async function verifyOtp() {
     if (phoneOtp.length !== 6) { setError('Enter the 6-digit OTP'); return; }
+    if (!confirmationRef.current) { setError('Please send OTP first'); return; }
     setOtpLoading(true); setError('');
     try {
-      const res = await fetch(`${API_ROOT}/api/otp/verify`, {
-        method: 'POST', headers,
-        body: JSON.stringify({ identifier: form.phone, type: 'phone', purpose: 'register', otp: phoneOtp }),
-      });
-      if (res.ok) { setPhoneVerified(true); setSuccess('Phone verified! ✅'); }
-      else { const d = await res.json(); setError(d.error || 'Incorrect OTP'); }
-    } catch { setError('Connection error'); }
-    finally { setOtpLoading(false); }
+      await verifyPhoneOtp(confirmationRef.current, phoneOtp);
+      setPhoneVerified(true);
+      setSuccess('Phone verified! ✅');
+    } catch (e: any) {
+      setError(e.message || 'Incorrect OTP');
+    } finally { setOtpLoading(false); }
   }
 
   async function register(e: React.FormEvent) {
@@ -75,6 +77,9 @@ export default function UserRegisterPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-yellow-50 to-white p-4">
+      {/* Invisible reCAPTCHA container — Firebase Phone Auth needs this */}
+      <div id="recaptcha-container" />
+
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-primary rounded-2xl mb-4 text-4xl shadow-md">🏨</div>
