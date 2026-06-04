@@ -52,6 +52,18 @@ function getOrInit(): FirebaseApp {
         projectId:     process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
         appId:         process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
     });
+
+    // App Check — reCAPTCHA v3
+    if (typeof window !== 'undefined') {
+        const { initializeAppCheck, ReCaptchaV3Provider } = await import('firebase/app-check');
+        initializeAppCheck(_app, {
+            provider: new ReCaptchaV3Provider(
+                process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY!
+            ),
+            isTokenAutoRefreshEnabled: true,
+        });
+    }
+
     return _app;
 }
 
