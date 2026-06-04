@@ -55,12 +55,13 @@ function getOrInit(): FirebaseApp {
 
     // App Check — reCAPTCHA v3
     if (typeof window !== 'undefined') {
-        const { initializeAppCheck, ReCaptchaV3Provider } = await import('firebase/app-check');
-        initializeAppCheck(_app, {
-            provider: new ReCaptchaV3Provider(
-                process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY!
-            ),
-            isTokenAutoRefreshEnabled: true,
+        import('firebase/app-check').then(({ initializeAppCheck, ReCaptchaV3Provider }) => {
+            initializeAppCheck(_app!, {
+                provider: new ReCaptchaV3Provider(
+                    process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY!
+                ),
+                isTokenAutoRefreshEnabled: true,
+            });
         });
     }
 
