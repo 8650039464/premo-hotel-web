@@ -96,16 +96,27 @@ export async function signInWithGooglePopup(): Promise<{
     };
 }
 // ─── Phone OTP via Firebase ───────────────────────────────────────
+
+let _recaptchaVerifier: RecaptchaVerifier | null = null;
+
 export async function sendPhoneOtp(
     phone: string,
     recaptchaContainerId: string
 ): Promise<ConfirmationResult> {
     const auth = getFirebaseAuth();
-    const recaptcha = new RecaptchaVerifier(auth, recaptchaContainerId, {
+
+    // Pehle wala instance clear karo
+    if (_recaptchaVerifier) {
+        try { _recaptchaVerifier.clear(); } catch {}
+        _recaptchaVerifier = null;
+    }
+
+    _recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaContainerId, {
         size: 'invisible',
     });
+
     const formattedPhone = phone.startsWith('+') ? phone : '+91' + phone;
-    return await signInWithPhoneNumber(auth, formattedPhone, recaptcha);
+    return await signInWithPhoneNumber(auth, formattedPhone, _recaptchaVerifier);
 }
 
 export async function verifyPhoneOtp(
